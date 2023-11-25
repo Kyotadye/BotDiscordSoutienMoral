@@ -12,6 +12,9 @@ channel_info = {}
 
 @client.event
 async def on_ready():
+    """
+    Se déclenche lorsque le client est prêt. Initialise les informations des canaux et lance la tâche périodique.
+    """
     print(f'{client.user} has connected to Discord!')
     for guild in client.guilds:
         guild_id = guild.id
@@ -21,6 +24,9 @@ async def on_ready():
 
 
 async def delete_old_messages():
+    """
+    Supprime les messages vieux de plus de quatre semaines dans les canaux spécifiés, à l'exception des canaux 'moderation' et 'discussion-psy'.
+    """
     # Ton canal spécifique où tu veux supprimer les messages
     target_channel_name = "moderation"
     mod_channel_id = channel_info.get(
@@ -41,6 +47,9 @@ async def delete_old_messages():
 
 
 async def daily_check():
+    """
+    Tâche périodique pour vérifier et supprimer les anciens messages tous les jours.
+    """
     while True:
         await delete_old_messages()  # Appelle la fonction pour supprimer les messages vieux de plus de deux semaines
         await asyncio.sleep(86400)  # Attend une journée (24 heures) avant de vérifier à nouveau

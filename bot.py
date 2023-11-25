@@ -23,6 +23,10 @@ fichier_mots_bannis = 'mots_bannis.txt'
 
 # Lire les mots bannis à partir du fichier
 def lire_mots_bannis():
+    """
+        Lit les mots bannis à partir d'un fichier texte.
+        Retourne une liste des mots bannis.
+    """
     try:
         with open(fichier_mots_bannis, 'r') as file:
             return file.read().splitlines()
@@ -32,6 +36,12 @@ def lire_mots_bannis():
 
 # Sauvegarder les mots bannis dans le fichier
 def sauvegarder_mots_bannis(banned_words):
+    """
+        Sauvegarde une liste de mots bannis dans un fichier texte.
+
+        Args:
+        banned_words (list): Liste des mots à sauvegarder.
+    """
     with open(fichier_mots_bannis, 'w') as file:
         for mot in banned_words:
             file.write(mot + '\n')
@@ -39,6 +49,9 @@ def sauvegarder_mots_bannis(banned_words):
 
 @bot.event
 async def on_ready():
+    """
+        Se déclenche lorsque le bot est prêt. Initialise les informations des canaux.
+    """
     print(f'{bot.user} has connected to Discord!')
     for guild in bot.guilds:
         guild_id = guild.id
@@ -49,6 +62,10 @@ async def on_ready():
 
 # Fonction pour reconstruire la regex des mots bannis
 def reconstruire_regex():
+    """
+    Reconstruit la regex pour les mots bannis en fonction de la liste actuelle.
+    Retourne une regex pour la détection des mots bannis ou None si la liste est vide.
+    """
     if mots_bannis != []:
         return r'\b(' + '|'.join(re.escape(mot) for mot in mots_bannis) + r')\b'
     else:
@@ -58,6 +75,12 @@ def reconstruire_regex():
 
 @bot.event
 async def on_member_join(member):
+    """
+    Se déclenche lorsqu'un nouveau membre rejoint. Renomme le membre avec un nom aléatoire.
+
+    Args:
+    member (discord.Member): Le membre qui a rejoint.
+    """
     # Générer une chaîne de caractères aléatoire pour le nouveau nom
     new_name = ''.join(
         random.choices(string.ascii_letters + string.digits, k=10))  # Génère un nom de 10 caractères aléatoires
@@ -71,6 +94,9 @@ async def on_member_join(member):
 
 
 async def delete_inactive_channels():
+    """
+    Supprime les canaux inactifs sur le serveur. Vérifie périodiquement et supprime les canaux sans activité récente.
+    """
     await bot.wait_until_ready()
     guild = bot.get_guild(GUILD_ID)
 
@@ -110,6 +136,12 @@ async def delete_inactive_channels():
 
 @bot.event
 async def on_message(message):
+    """
+    Se déclenche à la réception de chaque message. Traite les messages selon leur contenu et le canal.
+
+    Args:
+    message (discord.Message): Le message reçu.
+    """
     global mots_bannis, regex_mots_bannis, nombre_pouce_requis
 
     if message.author == bot.user:
@@ -325,6 +357,13 @@ async def on_message(message):
 
 @bot.event
 async def on_reaction_add(reaction, user):
+    """
+    Se déclenche lorsqu'une réaction est ajoutée à un message. Gère les réactions pour la modération et les fonctionnalités spécifiques.
+
+    Args:
+    reaction (discord.Reaction): La réaction ajoutée.
+    user (discord.User): L'utilisateur qui a ajouté la réaction.
+    """
     global nombre_pouce_requis
     target_channel_name = "moderation"
     mod_channel_id = channel_info.get(
