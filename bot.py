@@ -7,7 +7,7 @@ from discord.ext import commands
 import discord
 import asyncio
 
-TOKEN = 'YOUR_BOT_TOKEN_HERE'
+TOKEN = 'YOUR_TOKEN_HERE'
 GUILD_ID = 1178005116914237542
 
 intents = discord.Intents.all()
@@ -144,6 +144,13 @@ async def on_message(message):
     """
     global mots_bannis, regex_mots_bannis, nombre_pouce_requis
 
+    guild = bot.get_guild(GUILD_ID)  # Assurez-vous que GUILD_ID est défini correctement
+
+    member = guild.get_member(message.author.id)
+    if not member:
+        await message.channel.send("Vous n'êtes pas membre du serveur.")
+        return
+
     if message.author == bot.user:
         return
 
@@ -226,11 +233,7 @@ async def on_message(message):
                                                        f"accepté : {nombre_pouce_requis}")
                         else:
                             await message.channel.send("Le nombre doit être un entier.")
-                    else:
-                        await message.channel.send(
-                            "Action non reconnue. Utilisez 'modify' pour modifier le nombre de pouces requis ou "
-                            "'check' pour vérifier le nombre de pouce requis actuellement.")
-                    if action == 'check':
+                    elif action == 'check':
                         await message.channel.send(f"Nombre de pouces requis pour qu'un signalement"
                                                    f" soit accepté : {nombre_pouce_requis}")
                     else:
@@ -296,7 +299,7 @@ async def on_message(message):
             channel_id = channel_info.get((GUILD_ID, target_channel_name))
 
         confirmation_message = await message.channel.send(
-            "Voulez-vous renvoyer ce message dans un canal spécifique ? Répondez avec les réactions ci-dessous.")
+            "Confirmez que vous souhaitez bien envoyer ce message ? Répondez avec les réactions ci-dessous.")
 
         # Ajout des réactions au message pour confirmer ou annuler
         await confirmation_message.add_reaction("✅")  # Réaction pour confirmer
