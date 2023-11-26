@@ -1,3 +1,4 @@
+import os
 import random
 import re
 import string
@@ -7,7 +8,7 @@ from discord.ext import commands
 import discord
 import asyncio
 
-TOKEN = 'YOUR_TOKEN_HERE'
+TOKEN = 'YOUR_TOKEN'
 GUILD_ID = 1178005116914237542
 
 intents = discord.Intents.all()
@@ -19,6 +20,32 @@ nombre_pouce_requis = 10
 
 # Chemin vers le fichier contenant les mots bannis
 fichier_mots_bannis = 'mots_bannis.txt'
+
+
+def log_message(message):
+    """
+    Log un message dans un fichier texte organisé par date.
+
+    Args:
+    message (str): Le message à logger.
+    """
+    now = datetime.now()
+    year_dir = f'logs/{now.year}'
+    month_dir = f'{year_dir}/{now.month}'
+    log_file = f'{month_dir}/{now.day}.txt'
+
+    # Créer le dossier de l'année si nécessaire
+    if not os.path.exists(year_dir):
+        os.makedirs(year_dir)
+
+    # Créer le dossier du mois si nécessaire
+    if not os.path.exists(month_dir):
+        os.makedirs(month_dir)
+
+    # Logger le message dans le fichier du jour
+    with open(log_file, 'a') as file:
+        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        file.write(f"{timestamp} - {message}\n")
 
 
 # Lire les mots bannis à partir du fichier
@@ -172,19 +199,23 @@ async def on_message(message):
             await message.delete()
             await message.channel.send(
                 "Votre message a été supprimé car il contenait un ou plusieurs mots offensants.")
+            embed_description = f"Message de **{message.author}** contient " \
+                                f"un ou plusieurs mots offensants [id={message.id}] : {message.content}"
             embed = discord.Embed(title="Message non anonmyme anonyme bloqué",
-                                  description=f"Message de **{message.author}** contient un ou plusieurs mots "
-                                              f"offensants [id={message.id}] : {message.content}",
+                                  description=embed_description,
                                   color=discord.Color.orange())
             await mod_channel.send(embed=embed)
+            log_message(embed_description)
         elif isinstance(message.channel, discord.DMChannel):
             await message.channel.send(
                 "Votre message n'a pas été envoyé car il contenait un ou plusieurs mots offensants.")
+            embed_description = f"Message de **{message.author}** contient " \
+                                f"un ou plusieurs mots offensants [id={message.id}] : {message.content}"
             embed = discord.Embed(title="Message anonyme bloqué",
-                                  description=f"Message de **{message.author}** contient un ou plusieurs mots "
-                                              f"offensants [id={message.id}] : {message.content}",
+                                  description=embed_description,
                                   color=discord.Color.orange())
             await mod_channel.send(embed=embed)
+            log_message(embed_description)
         return
 
     if isinstance(message.channel, discord.TextChannel):
@@ -243,12 +274,12 @@ async def on_message(message):
         elif message.channel.name == 'moderation' and message.content.startswith('!help'):
             if any(role.name == 'modérateur' for role in message.author.roles):
                 embed = discord.Embed(title="Commandes disponibles",
-                                        description="**!badword [add/delete] [mot] **: ajoute ou supprime un mot de la "
-                                                    "liste des mots bannis \n"
-                                                    "**!listbadwords** : liste les mots bannis \n"
-                                                    "**!reportnumber [modify/check] [nombre]** : modifie ou affiche le "
-                                                    "nombre de pouces requis pour qu'un signalement soit accepté",
-                                        color=discord.Color.green())
+                                      description="**!badword [add/delete] [mot] **: ajoute ou supprime un mot de la "
+                                                  "liste des mots bannis \n"
+                                                  "**!listbadwords** : liste les mots bannis \n"
+                                                  "**!reportnumber [modify/check] [nombre]** : modifie ou affiche le "
+                                                  "nombre de pouces requis pour qu'un signalement soit accepté",
+                                      color=discord.Color.green())
                 await message.channel.send(embed=embed)
             return
 
@@ -261,11 +292,11 @@ async def on_message(message):
             await message.channel.send("Le message contient un lien ou un fichier, je ne peux pas le traiter.")
             return
 
-
         user_id = message.author.id  # ID de l'utilisateur qui envoie le message privé
         chosen_channel = None  # Canal choisi par l'utilisateur pour envoyer le message
         chose_channel_message = await message.channel.send(
-            "Dans quel channel voulez vous envoyer votre message ? Répondez avec les réactions ci-dessous. (discussions/appel à l'aide/privé)")
+            "Dans quel channel voulez vous envoyer votre message ? Répondez avec les réactions ci-dessous. ("
+            "discussions/appel à l'aide/privé)")
 
         # Ajout des réactions au message pour choisir le canal
         await chose_channel_message.add_reaction("💬")  # Réaction pour envoyer le message dans le canal général
@@ -299,7 +330,7 @@ async def on_message(message):
             channel_id = channel_info.get((GUILD_ID, target_channel_name))
 
         confirmation_message = await message.channel.send(
-            "Confirmez que vous souhaitez bien envoyer ce message ? Répondez avec les réactions ci-dessous.")
+            "Confirmez vous que vous souhaitez bien envoyer ce message ? Répondez avec les réactions ci-dessous.")
 
         # Ajout des réactions au message pour confirmer ou annuler
         await confirmation_message.add_reaction("✅")  # Réaction pour confirmer
@@ -381,12 +412,14 @@ async def on_reaction_add(reaction, user):
                 # Envoie du message copié dans le channel de modération
                 mod_channel = bot.get_channel(mod_channel_id)
                 if mod_channel:
+                    emded_description = f"Message supprimé de {author_name} envoyé à {reaction.message.created_at}:\n{content}"
                     embed = discord.Embed(
-                        title=f"Message supprimé de {author_name} envoyé à {reaction.message.created_at}:",
+                        title=emded_description,
                         description=f"{content}",
                         color=discord.Color.red()  # Vous pouvez choisir la couleur
                     )
                     await mod_channel.send(embed=embed)
+                    log_message(emded_description)
                 # Suppression du message original
                 await reaction.message.delete()
 
