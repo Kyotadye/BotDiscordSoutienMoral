@@ -355,10 +355,11 @@ async def on_message(message):
             user_states[user_id] = ""
             forum_tags = channel.available_tags
             tag_forum_message = await message.channel.send("Quel tags voulez vous ajouter à votre problème ? Répondez "
-                                                           "avec les réactions ci-dessous.\n ({})".format(" / ".join([
+                                                           "avec les réactions ci-dessous (ATTENDEZ BIEN QUE TOUTES "
+                                                           "APPARAISSENT + PAS PLUS DE 5).\n ({})".format(" / ".join([
                 tag.name for tag in forum_tags])))
             await message.channel.send("Si vous avez ajouté tous vos tags réagissez avec ✅")
-            list_reactions = ["🩺", "😔", "💑", "🏠", "👨‍💻", "👮", "📱", "⚰️", "🤝", "👥", "👨‍👩‍👧‍👦", "👩‍❤️‍💋‍👨", "🤷", "💰", "👪",
+            list_reactions = ["🩺", "😔", "💑", "🏠", "👨‍💻", "👮", "📱", "⚰️", "🤝", "👥", "🤷", "💰", "👪",
                               "🍆","✅"]
             reaction_to_tag_map = {list_reactions[i]: tag for i, tag in enumerate(forum_tags)}
 
