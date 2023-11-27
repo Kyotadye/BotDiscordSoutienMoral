@@ -17,6 +17,7 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 channel_info = {}
 user_cooldown = {}  # Dictionnaire pour stocker les utilisateurs ayant créé un canal
 nombre_pouce_requis = 10
+user_states = {}  # Dictionnaire pour suivre l'état des utilisateurs
 
 # Chemin vers le fichier contenant les mots bannis
 fichier_mots_bannis = 'mots_bannis.txt'
@@ -83,6 +84,8 @@ async def on_ready():
     for guild in bot.guilds:
         guild_id = guild.id
         for channel in guild.text_channels:
+            channel_info[(guild_id, channel.name)] = channel.id
+        for channel in guild.forums:
             channel_info[(guild_id, channel.name)] = channel.id
     bot.loop.create_task(delete_inactive_channels())
 
@@ -172,6 +175,16 @@ async def on_message(message):
     global mots_bannis, regex_mots_bannis, nombre_pouce_requis
 
     guild = bot.get_guild(GUILD_ID)  # Assurez-vous que GUILD_ID est défini correctement
+    user_id = message.author.id
+
+    if user_states.get(user_id) == "attente_titre":
+        # Traitez le titre ici
+        title_problemes = message.content
+        # ... votre logique pour gérer le titre
+
+        # Réinitialisez l'état de l'utilisateur
+        user_states[user_id] = None
+        return
 
     member = guild.get_member(message.author.id)
     if not member:
@@ -296,7 +309,8 @@ async def on_message(message):
         chosen_channel = None  # Canal choisi par l'utilisateur pour envoyer le message
         chose_channel_message = await message.channel.send(
             "Dans quel channel voulez vous envoyer votre message ? Répondez avec les réactions ci-dessous. ("
-            "discussions/appel à l'aide/privé)")
+            "discussions/appel à l'aide/problèmes)(pour un problème décrivez votre problème le titre sera demandé par "
+            "la suite)")
 
         # Ajout des réactions au message pour choisir le canal
         await chose_channel_message.add_reaction("💬")  # Réaction pour envoyer le message dans le canal général
@@ -312,6 +326,11 @@ async def on_message(message):
             await message.channel.send("Temps écoulé, la confirmation a expiré.")
             return
 
+        problemes = False
+        title_problemes = ""
+        # Collecter les tags choisis
+        chosen_tags = []
+
         if str(reaction.emoji) == '💬':
             target_channel_name = "discussions"  # Remplace ceci par le nom du canal dans lequel tu veux renvoyer les messages
             # Récupération de l'ID du canal à partir du nom et de l'ID de la guilde
@@ -324,6 +343,43 @@ async def on_message(message):
             target_channel_name = "problemes"  # Remplace ceci par le nom du canal dans lequel tu veux renvoyer les messages
             # Récupération de l'ID du canal à partir du nom et de l'ID de la guilde
             channel_id = channel_info.get((GUILD_ID, target_channel_name))
+            channel = bot.get_channel(channel_id)
+            await message.channel.send("Quel est le titre de votre problème ?")
+            user_states[user_id] = "attente_titre"
+            try:
+                title_problemes = await bot.wait_for('message', timeout=60)
+            except asyncio.TimeoutError:
+                await message.channel.send("Temps écoulé, la confirmation a expiré.")
+                user_states[user_id] = ""
+                return
+            user_states[user_id] = ""
+            forum_tags = channel.available_tags
+            tag_forum_message = await message.channel.send("Quel tags voulez vous ajouter à votre problème ? Répondez "
+                                                           "avec les réactions ci-dessous.\n ({})".format(" / ".join([
+                tag.name for tag in forum_tags])))
+            await message.channel.send("Si vous avez ajouté tous vos tags réagissez avec ✅")
+            list_reactions = ["🩺", "😔", "💑", "🏠", "👨‍💻", "👮", "📱", "⚰️", "🤝", "👥", "👨‍👩‍👧‍👦", "👩‍❤️‍💋‍👨", "🤷", "💰", "👪",
+                              "🍆","✅"]
+            reaction_to_tag_map = {list_reactions[i]: tag for i, tag in enumerate(forum_tags)}
+
+            for reaction in list_reactions:
+                await tag_forum_message.add_reaction(reaction)
+
+            def check3(reaction, user):
+                return user.id == user_id and reaction.message.id == tag_forum_message.id and str(
+                    reaction) in list_reactions
+
+            while True:
+                try:
+                    reaction, _ = await bot.wait_for('reaction_add', check=check3, timeout=60)
+                    if str(reaction) == "✅":
+                        break
+                    chosen_tags.append(reaction_to_tag_map[str(reaction)])
+                except asyncio.TimeoutError:
+                    break
+
+            problemes = True
+
         else:
             target_channel_name = "discussions"  # Remplace ceci par le nom du canal dans lequel tu veux renvoyer les messages
             # Récupération de l'ID du canal à partir du nom et de l'ID de la guilde
@@ -370,6 +426,13 @@ async def on_message(message):
 
                     # Mettre à jour le cooldown de l'utilisateur
                     user_cooldown[user_id] = datetime.utcnow()
+            elif problemes:
+                name_f = str(title_problemes.content)
+                message_f = str(message.content)
+                new_thread = await bot.get_channel(channel_id).create_thread(name=name_f,
+                                                                             content=message_f,
+                                                                             auto_archive_duration=4320,
+                                                                             applied_tags=chosen_tags)
             else:
                 if channel_id:
                     target_channel = bot.get_channel(channel_id)
