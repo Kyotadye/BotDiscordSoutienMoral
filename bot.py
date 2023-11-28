@@ -1,3 +1,4 @@
+import hashlib
 import os
 import random
 import re
@@ -117,8 +118,14 @@ async def on_member_join(member):
 
     try:
         # Renommer le membre avec le nouveau nom
-        await member.edit(nick=new_name)
         print(f"Le membre {member.display_name} a été renommé en {new_name}.")
+        embed = discord.Embed(title=f"Bonjour {member.display_name}, bienvenue sur le discord de Soutien Moral ! ",
+                              description="Je suis le bot du serveur,  Je vous invite à lire le règlement " \
+                                          f"ainsi qu'à explorer les différents channels disponibles. Pour le fonctionnement du bot "
+                                          f"tout est présenté dans annonces et informations.",
+                              color=discord.Color.yellow())
+        await member.send(embed=embed)
+        await member.edit(nick=new_name)
     except discord.Forbidden:
         print(f"Impossible de renommer le membre {member.display_name}. Permission manquante.")
 
@@ -162,6 +169,22 @@ async def delete_inactive_channels():
                     del user_cooldown[user_id]  # Supprimer l'entrée obsolète
 
         await asyncio.sleep(7200)  # Vérifier toutes les 2 heures
+
+
+async def delete_topic_by_id(channel_id, message_id, bot):
+    # Hasher l'ID du message
+    message_id_hash = hashlib.sha256(str(message_id).encode()).hexdigest()[:14]
+    channel = bot.get_channel(channel_id)
+
+    # Parcourir les sujets dans le channel
+    topics = channel.threads  # Ajustez la limite si nécessaire
+    for topic in topics:
+        if topic.name.startswith(f"[{message_id_hash}]"):
+            # Supprimer le sujet trouvé
+            await topic.delete()
+            return True
+
+    return False  # Aucun sujet trouvé avec le hash correspondant
 
 
 @bot.event
@@ -305,6 +328,24 @@ async def on_message(message):
             await message.channel.send("Le message contient un lien ou un fichier, je ne peux pas le traiter.")
             return
 
+        if message.content.startswith('!deletetopic'):
+            channel_id = channel_info.get((GUILD_ID, "problemes"))
+            channel = bot.get_channel(channel_id)
+            parts = message.content.split()
+            if len(parts) >= 2:
+                message_id = parts[1]
+                if message_id.isdigit():
+                    topic_deleted = await delete_topic_by_id(channel_id, message_id, bot)
+                    if topic_deleted:
+                        await message.channel.send("Sujet supprimé avec succès.")
+                    else:
+                        await message.channel.send("Aucun sujet trouvé avec cet ID.")
+                else:
+                    await message.channel.send("L'ID du message doit être un entier.")
+            else:
+                await message.channel.send("Usage: !deletetopic [id_message]")
+            return
+
         user_id = message.author.id  # ID de l'utilisateur qui envoie le message privé
         chosen_channel = None  # Canal choisi par l'utilisateur pour envoyer le message
         chose_channel_message = await message.channel.send(
@@ -360,7 +401,7 @@ async def on_message(message):
                 tag.name for tag in forum_tags])))
             await message.channel.send("Si vous avez ajouté tous vos tags réagissez avec ✅")
             list_reactions = ["🩺", "😔", "💑", "🏠", "👨‍💻", "👮", "📱", "⚰️", "🤝", "👥", "🤷", "💰", "👪",
-                              "🍆","✅"]
+                              "🍆", "✅"]
             reaction_to_tag_map = {list_reactions[i]: tag for i, tag in enumerate(forum_tags)}
 
             for reaction in list_reactions:
@@ -428,18 +469,37 @@ async def on_message(message):
                     # Mettre à jour le cooldown de l'utilisateur
                     user_cooldown[user_id] = datetime.utcnow()
             elif problemes:
-                name_f = str(title_problemes.content)
-                message_f = str(message.content)
+                message_id_hash = hashlib.sha256(str(message.id).encode()).hexdigest()[
+                                  :14]  # Hashage de l'id du message pour pouvoir le retrouver pour la commande delete
+                name_f = f"[{message_id_hash}]" + str(title_problemes.content)
+                message_f = message.content
+
+                current_id = message.id
+                # Vérifier l'unicité du hash
+                while True:
+                    # Générer le hash
+                    message_id_hash = hashlib.sha256(str(current_id).encode()).hexdigest()[:14]
+
+                    # Vérifier si le hash existe déjà
+                    if await check_hash_existence(channel_id, message_id_hash, bot):
+                        current_id += 1  # Le hash existe, augmenter l'ID de 1
+                        if current_id - message.id > 1000:  # Limite de sécurité pour éviter une boucle infinie
+                            raise Exception("Trop de tentatives pour trouver un hash unique.")
+                    else:
+                        break
+
                 new_thread = await bot.get_channel(channel_id).create_thread(name=name_f,
                                                                              content=message_f,
                                                                              auto_archive_duration=4320,
                                                                              applied_tags=chosen_tags)
+                await message.channel.send(f"Topic créé avec l'id {current_id} (si jamais vous voulez le faire "
+                                           f"supprimer utilisez la commande \"!deletetopic votre_id\" .")
             else:
                 if channel_id:
                     target_channel = bot.get_channel(channel_id)
                     if target_channel:
                         embed = discord.Embed(
-                            title=f"Nouveau message anonyme [id={message.id}]:",
+                            title=f"Nouveau message anonyme:",
                             description=f"{message.content}",
                             color=discord.Color.blue()  # Vous pouvez choisir la couleur
                         )
@@ -451,6 +511,16 @@ async def on_message(message):
                             f"Le canal '{target_channel_name}' n'a pas été trouvé sur ce serveur.")
         else:
             await message.channel.send("Opération annulée.")
+
+
+async def check_hash_existence(channel_id, message_id_hash, client):
+    channel = client.get_channel(channel_id)
+    topics = channel.threads  # Récupérer les sujets (ajuster la limite si nécessaire)
+
+    for topic in topics:
+        if topic.name.startswith(f"[{message_id_hash}]"):
+            return True  # Le hash existe déjà
+    return False
 
 
 @bot.event
